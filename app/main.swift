@@ -229,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let donate = button("♥ Support on Ko-fi", #selector(supportProject)); donate.bezelStyle = .inline; donate.controlSize = .small
         donate.toolTip = "Support ValeoCapture development at ko-fi.com/oakman"
         footer.addArrangedSubview(donate); root.addArrangedSubview(footer); fullWidth(footer)
+        if let output = showcaseOutput { renderShowcase(to: output); return }
         window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         if let path = UserDefaults.standard.string(forKey: "destination") { destinationURL = URL(fileURLWithPath: path); destination.stringValue = path }
         if let name = UserDefaults.standard.string(forKey: "profileName") { profile.stringValue = name }
@@ -245,6 +246,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh()
     }
     private func button(_ title: String, _ action: Selector) -> NSButton { NSButton(title: title, target: self, action: action) }
+
+    // README showcase: the real window in a representative state, rendered offscreen to PNG.
+    // No camera, capture service, preferences or folders are touched; the preview is a
+    // procedurally generated test chart, never a photograph.
+    private var showcaseOutput: URL? {
+        guard let index = CommandLine.arguments.firstIndex(of: "--render-showcase"), index + 1 < CommandLine.arguments.count else { return nil }
+        return URL(fileURLWithPath: CommandLine.arguments[index + 1])
+    }
+    private func syntheticChart(width: Int, height: Int) -> NSImage {
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.lockFocus()
+        let w = CGFloat(width), h = CGFloat(height)
+        NSGradient(colors: [NSColor(calibratedWhite: 0.16, alpha: 1), NSColor(calibratedWhite: 0.07, alpha: 1)])!.draw(in: NSRect(x: 0, y: 0, width: w, height: h), angle: -90)
+        // 6 x 4 colour patches: evenly spaced hues and saturations, purely arithmetic.
+        let cols = 6, rows = 4, margin = w * 0.06, gap = w * 0.012
+        let gridW = w * 0.56, cell = (gridW - gap * CGFloat(cols - 1)) / CGFloat(cols)
+        let top = h - margin
+        for r in 0..<rows { for c in 0..<cols {
+            let colour: NSColor = r == rows - 1
+                ? NSColor(calibratedWhite: CGFloat(cols - 1 - c) / CGFloat(cols - 1) * 0.92 + 0.04, alpha: 1)
+                : NSColor(calibratedHue: CGFloat(c) / CGFloat(cols) + CGFloat(r) * 0.055, saturation: 0.75 - CGFloat(r) * 0.18, brightness: 0.82, alpha: 1)
+            colour.setFill()
+            NSBezierPath(roundedRect: NSRect(x: margin + CGFloat(c) * (cell + gap), y: top - CGFloat(r + 1) * cell - CGFloat(r) * gap, width: cell, height: cell), xRadius: 4, yRadius: 4).fill()
+        } }
+        // Smooth grey ramp and RGB ramps below the patches.
+        let rampY = top - CGFloat(rows) * (cell + gap) - h * 0.08, rampH = h * 0.05
+        for (i, tint) in [NSColor.white, NSColor.systemRed, NSColor.systemGreen, NSColor.systemBlue].enumerated() {
+            NSGradient(colors: [NSColor.black, tint])!.draw(in: NSRect(x: margin, y: rampY - CGFloat(i) * (rampH + gap), width: gridW, height: rampH), angle: 0)
+        }
+        // Siemens star for sharpness.
+        let centre = NSPoint(x: margin + gridW + (w - margin - gridW) / 2, y: h * 0.56), radius = min(w * 0.17, h * 0.3)
+        NSColor(calibratedWhite: 0.92, alpha: 1).setFill(); NSBezierPath(ovalIn: NSRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)).fill()
+        NSColor(calibratedWhite: 0.08, alpha: 1).setFill()
+        let spokes = 36
+        for k in stride(from: 0, to: spokes, by: 2) {
+            let a0 = CGFloat(k) / CGFloat(spokes) * 360, a1 = CGFloat(k + 1) / CGFloat(spokes) * 360
+            let wedge = NSBezierPath(); wedge.move(to: centre)
+            wedge.appendArc(withCenter: centre, radius: radius, startAngle: a0, endAngle: a1); wedge.close(); wedge.fill()
+        }
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: h * 0.03, weight: .medium), .foregroundColor: NSColor(calibratedWhite: 0.72, alpha: 1)]
+        ("SYNTHETIC TEST CHART" as NSString).draw(at: NSPoint(x: centre.x - radius, y: h * 0.17), withAttributes: attributes)
+        ("not a photograph" as NSString).draw(at: NSPoint(x: centre.x - radius, y: h * 0.12), withAttributes: attributes)
+        image.unlockFocus()
+        return image
+    }
+    private func renderShowcase(to url: URL) {
+        status.stringValue = "Listening · ready for the shutter"
+        detail.stringValue = "Leaf Valeo 11 connected. Fire the camera's shutter; each photograph is received with a fresh dark frame."
+        destination.stringValue = "~/Pictures/ValeoCapture"; profile.stringValue = "Imported preset: Portrait.icc"
+        iso.selectItem(at: min(1, max(0, iso.numberOfItems - 1)))
+        captureStep.stringValue = "Ready for the shutter  ·  3 photographs saved this session"
+        exportStatus.stringValue = "DNG and 16-bit TIFF saved for the last photograph."
+        lastTiming.stringValue = "Last capture 7.9 s  ·  photograph 2.7 s  ·  dark frame 4.3 s  ·  export 0.5 s"
+        progress.doubleValue = 1
+        preview.image = syntheticChart(width: 1503, height: 1002); previewPlaceholder.isHidden = true
+        previewName.stringValue = "Valeo11-0000000000000003.tiff  ·  4008 × 2672  ·  synthetic preview"
+        loginButton.isEnabled = true; revealButton.isEnabled = true; captureButton.isEnabled = false; stopButton.isEnabled = true
+        guard let view = window.contentView else { exit(1) }
+        view.layoutSubtreeIfNeeded(); view.display()
+        guard let content = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(1) }
+        view.cacheDisplay(in: view.bounds, to: content)
+        // The window background is not part of the content view: composite onto it, in pixels.
+        let width = content.pixelsWide, height = content.pixelsHigh
+        guard let source = content.cgImage,
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { exit(1) }
+        let full = CGRect(x: 0, y: 0, width: width, height: height)
+        context.setFillColor((window.backgroundColor ?? .black).usingColorSpace(.sRGB)!.cgColor); context.fill(full)
+        context.draw(source, in: full)
+        guard let composed = context.makeImage() else { exit(1) }
+        let rep = NSBitmapImageRep(cgImage: composed)
+        guard let png = rep.representation(using: .png, properties: [:]) else { exit(1) }
+        do { try png.write(to: url, options: .withoutOverwriting) } catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }
+        print("Rendered showcase \(rep.pixelsWide)x\(rep.pixelsHigh) to \(url.path)"); exit(0)
+    }
     private func result(_ json: String) -> [String: Any] {
         guard let data = json.data(using: .utf8), let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
         return value["schema"] as? Int == 1 ? value : [:]

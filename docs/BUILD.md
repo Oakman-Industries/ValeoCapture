@@ -40,6 +40,14 @@ This builds a universal (x86_64 + arm64), ad-hoc signed `ValeoCapture.app` with 
 capture service, plus a universal `valeoctl`. The default build keeps **all camera commands
 disabled** and bundles no vendor resources.
 
+To regenerate the README screenshot (`assets/showcase.png`) from the real window — offscreen, with a
+generated test chart instead of a photograph and without touching the camera or preferences:
+
+```sh
+build-app/ValeoCapture.app/Contents/MacOS/ValeoCapture --render-showcase /tmp/showcase.png
+sips -Z 1800 /tmp/showcase.png --out assets/showcase.png
+```
+
 ### Functional build with your own resources
 
 ```sh

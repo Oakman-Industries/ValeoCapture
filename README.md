@@ -1,8 +1,25 @@
-<img src="assets/AppIcon.png" width="128" alt="ValeoCapture app icon">
+<h1 align="center">
+  <img src="assets/banner.svg" alt="ValeoCapture — native macOS capture for the Leaf Valeo 11 digital back" width="100%">
+</h1>
 
-# ValeoCapture
+<p align="center">
+  <a href="LICENSE"><img alt="License: CC BY-NC-SA 4.0" src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-6e8f69?style=flat-square"></a>
+  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-2b3137?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Universal: Intel + Apple Silicon" src="https://img.shields.io/badge/universal-Intel%20%2B%20Apple%20Silicon-2b3137?style=flat-square">
+  <img alt="Status: in development" src="https://img.shields.io/badge/status-in%20development-b58a3c?style=flat-square">
+  <a href="https://ko-fi.com/oakman"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=flat-square&logo=kofi&logoColor=white"></a>
+</p>
 
-**© 2026 Oakman Industries — licensed CC BY-NC-SA 4.0** (build on it, keep it open & non-commercial; see `LICENSE`).
+<p align="center">
+  <a href="#requirements">Requirements</a> ·
+  <a href="#step-by-step">Step-by-step</a> ·
+  <a href="#how-it-works-brief">How it works</a> ·
+  <a href="#accuracy--limitations">Limitations</a> ·
+  <a href="#build-and-test">Build</a> ·
+  <a href="docs/PROTOCOL.md">Protocol</a>
+</p>
+
+<p align="center"><strong>© 2026 Oakman Industries — licensed CC BY-NC-SA 4.0</strong> (build on it, keep it open &amp; non-commercial; see <code>LICENSE</code>).</p>
 
 > [!IMPORTANT]
 > **ValeoCapture is still under active development and is not yet ready for a general public
@@ -21,6 +38,23 @@
 > hardware, testing and further research.
 
 ---
+
+<p align="center">
+  <img src="assets/showcase.png" alt="The ValeoCapture window: capture settings on the left, the latest capture in the centre, and the listening status with timings below" width="100%">
+  <br>
+  <sub>The real app window, rendered with <code>ValeoCapture --render-showcase</code>. The preview shows a
+  generated test chart in place of a photograph; names and timings are representative.</sub>
+</p>
+
+## At a glance
+
+| | |
+| --- | --- |
+| 📷 **Capture** | Physical-shutter exposures from a Leaf Valeo 11, received over FireWire with a fresh dark frame |
+| 🎞️ **Output** | Editable **4008 × 2672 DNG** with raw headroom, plus an optional **16-bit TIFF** through your own Leaf preset |
+| 🔒 **Kept** | Original light and dark frames with their status records, journalled and never overwritten |
+| 🎚️ **Gain** | 1× / 2× / 4× / 8× software gain (ISO 25–200 equivalent), changeable while listening |
+| 💻 **Macs** | Universal app for Intel and Apple Silicon; system FireWire on macOS 10.15–15, ASFW on macOS 26 |
 
 ## Why this exists
 
