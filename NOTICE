@@ -1,0 +1,17 @@
+ValeoCapture
+Copyright (c) 2026 Oakman Industries. Licensed under CC BY-NC-SA 4.0 (see LICENSE).
+
+This repository and the app it builds contain no Leaf firmware, software, ICC presets,
+photographs or per-device calibration. Owners supply those resources locally.
+
+Separately licensed third-party material keeps its own terms:
+
+- third_party/apple/IOKit/firewire/*.h — unchanged public FireWire ABI header declarations.
+  Their individual notices refer to the Apple Public Source License 1.1, included as
+  third_party/apple/APSL-1.1.txt; third_party/apple/APPLE_LICENSE is the license file supplied
+  with the source repository. These are declarations used to call the operating system's
+  plug-in interfaces; no Apple implementation code is copied. See third_party/README.md.
+
+- CharLS 2.4.5 (optional JPEG-LS component), fetched as checksum-pinned source at build time,
+  BSD-3-Clause. Copyright (c) 2007, Jan de Vaan and Victor Derks. All rights reserved.
+  Full license: third_party/charls/LICENSE.md.

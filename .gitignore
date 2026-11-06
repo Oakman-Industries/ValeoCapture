@@ -1,0 +1,60 @@
+# Oakman Industries default .gitignore — extend per project.
+
+# --- Private per-device / user data (NEVER commit) ---
+*.RAW
+*.raw
+*.BIN
+*.bin
+*.iso
+*_dump/
+dumps/
+captures/
+donor/
+*_disc/
+
+# --- Project config that may hold per-user values ---
+model_profile.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# --- Build / OS / editor ---
+build/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- ValeoCapture: build outputs and owner-private resources (NEVER commit) ---
+/build*/
+/.cache/
+/private/
+*.mos
+*.icc
+*.icm
+*.ICC
+*.ICM
+*.vraw
+*.partial
+*.dng
+*.tif
+*.tiff
+*.trace
+*.key
+*.pem
+*.p12
+*.mobileprovision
+*.provisionprofile
+*.app/
+*.kext/
+*.dmg
+*.pkg

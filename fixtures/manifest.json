@@ -1,0 +1,22 @@
+{
+  "zero": {
+    "raw_sha256": "9f1dcbc35c350d6027f98be0f5c8b43b42ca52b7604459c0c42be3aa88913d47",
+    "jls_sha256": "daacb05683a906ee6260410d824ea2b9a58e3a0c79cb39d30316c512a3f4224f",
+    "jls_bytes": 39
+  },
+  "maximum": {
+    "raw_sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f",
+    "jls_sha256": "f40d4cda141139b2e73bfa584336b4547e60c7ac303ea1e9052bfa4a5b19e9a1",
+    "jls_bytes": 96
+  },
+  "ramp": {
+    "raw_sha256": "462bce6bd943e10fbcc0a5ecc34a141f794c0e834a009c52f3df43985b517c1c",
+    "jls_sha256": "0b1b635a1262258841ca4c56981e2f2b4360a90775a96846cb427be0104872a5",
+    "jls_bytes": 1130
+  },
+  "random16": {
+    "raw_sha256": "e739f9856ca9f914e5862529874811bcd86aa4f296fb5c5626749ed3cfa5cce3",
+    "jls_sha256": "7883785eb66c4c04f64a8187fe0985bd6fe152eeef0de8585ee65124dd0c04c8",
+    "jls_bytes": 8586
+  }
+}

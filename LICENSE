@@ -1,0 +1,38 @@
+Copyright (c) 2026 Oakman Industries
+
+This work — the software in this repository together with the research, findings, file-format
+documentation and methods it embodies — is licensed under the
+
+    Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+    (CC BY-NC-SA 4.0)
+
+You are free to:
+  * Share  — copy and redistribute the material in any medium or format.
+  * Adapt  — remix, transform, and build upon the material.
+
+Under the following terms:
+  * Attribution (BY)   — You must give appropriate credit to Oakman Industries, provide a link
+                         to this license, and indicate if changes were made.
+  * NonCommercial (NC) — You may NOT use the material, or anything built from it, for commercial
+                         purposes.
+  * ShareAlike (SA)    — If you remix, transform, or build upon the material — INCLUDING your own
+                         research and findings derived from it — you must distribute your
+                         contributions under this same CC BY-NC-SA 4.0 license, openly.
+  * No additional restrictions — You may not apply legal terms or technological measures that
+                         legally restrict others from doing anything the license permits.
+
+The full legal code is at: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+A human-readable summary is at: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+NOTE: CC BY-NC-SA 4.0 is a copyleft, non-commercial license. Because of the NonCommercial clause
+it is intentionally NOT an OSI-approved "open source" license; it is chosen deliberately so that
+derivatives must stay open and non-commercial.
+
+DISCLAIMER: The material is provided "as-is", without warranties of any kind. It contains no
+third-party (<VENDOR>) firmware, software, or proprietary data. Use it only with hardware and data
+you are entitled to use.
+
+PROVENANCE:
+Files produced by this software carry an invisible Oakman Industries provenance mark to support
+attribution and license enforcement. Removing or circumventing it to misattribute or commercially
+exploit the work is a violation of the Attribution / NonCommercial terms above.
