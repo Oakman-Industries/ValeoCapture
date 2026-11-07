@@ -43,6 +43,16 @@ the TIFF applies the gain before the preset and embeds the actual output sRGB pr
 planes: factory gain/defect equivalence is still being verified. Timing details are saved beside
 each capture.
 
+If the body fires while the sync cable is disconnected, the back beeps four times and records no
+exposure. The app then shows an orange warning, finishes the back's image cycle so the next shot
+works, writes `<name>.failed-exposure.json` (the back's status and capture-parameter bytes, no
+image data) beside your captures and keeps listening. Reconnect the sync cable and fire again.
+
+Each listening session also writes a plain-text log to `~/Library/Logs/ValeoCapture/`: the back's
+status bytes, frame announcements and timings, no image data. Attach it and any
+`.failed-exposure.json` when you report a problem. Error messages in the log can contain folder
+paths, so review it before sharing.
+
 **Stop** finishes an in-flight image and its export before closing; wait for the stopped state
 before disconnecting. A frame already pending when you connect is preserved rather than
 overwritten. Files are never overwritten.

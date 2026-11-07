@@ -61,7 +61,9 @@ extern "C" char* VCCaptureState(){return result([]{
         ",\"completed\":"+std::to_string(p.completed)+",\"lastDNG\":"+quote(p.last_dng)+",\"lastTIFF\":"+quote(p.last_tiff)+
         ",\"lastRAW\":"+quote(p.last_raw)+",\"fraction\":"+std::to_string(p.fraction)+",\"timing\":"+quote(p.timing)+
         ",\"softwareISO\":"+std::to_string(p.software_iso)+",\"frameISO\":"+std::to_string(p.frame_iso)+",\"requestedISO\":"+std::to_string(capture_requested_iso.load())+
-        ",\"isoMode\":\"software\",\"sensorGainVerified\":false,\"error\":"+quote(p.error)+"}";
+        ",\"isoMode\":\"software\",\"sensorGainVerified\":false,\"warning\":"+quote(p.warning)+
+        ",\"failedExposures\":"+std::to_string(p.failed_exposures)+",\"lastDiagnostic\":"+quote(p.last_diagnostic)+
+        ",\"error\":"+quote(p.error)+"}";
 });}
 extern "C" char* VCRunCapture(unsigned long long id,const char* folder,unsigned int iso,unsigned int orientation,unsigned int white,
     const double* matrix,const double* neutral,const char* serial,const void* profile,unsigned long long profile_size,int save_tiff){return result([&]{

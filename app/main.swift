@@ -87,8 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastPreviewPath = ""
     private var captureTimer: Timer?
 
+    private var launchSplash: LaunchSplash?
+    private var launchShownAt = Date()
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        if showcaseOutput == nil { let splash = LaunchSplash(); splash.show(); launchSplash = splash; launchShownAt = Date() }
         let menu = NSMenu()
         let appMenuItem = NSMenuItem(); menu.addItem(appMenuItem)
         let appMenu = NSMenu(); appMenuItem.submenu = appMenu
@@ -191,6 +194,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let imageArea = NSView(); imageArea.wantsLayer = true; imageArea.layer?.cornerRadius = 9
         imageArea.layer?.backgroundColor = NSColor(calibratedWhite: 0.08, alpha: 1).cgColor
         preview.imageScaling = .scaleProportionallyUpOrDown; preview.setAccessibilityLabel("Last capture preview")
+        // The thumbnail's pixel size is the image view's intrinsic size. Keep it
+        // below the window's own size priority so the photograph scales into the
+        // panel instead of growing the window (a 1000 px thumbnail made it
+        // ~1450 x 1180 points, taller than a small laptop screen).
+        for axis in [NSLayoutConstraint.Orientation.horizontal, .vertical] {
+            preview.setContentCompressionResistancePriority(.defaultLow, for: axis)
+            preview.setContentHuggingPriority(.defaultLow, for: axis)
+        }
         preview.translatesAutoresizingMaskIntoConstraints = false; imageArea.addSubview(preview)
         previewPlaceholder.textColor = .secondaryLabelColor; previewPlaceholder.alignment = .center; previewPlaceholder.font = NSFont.systemFont(ofSize: 12)
         previewPlaceholder.translatesAutoresizingMaskIntoConstraints = false; imageArea.addSubview(previewPlaceholder)
@@ -206,9 +217,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         previewName.widthAnchor.constraint(equalTo: imageArea.widthAnchor).isActive = true
 
         let capturePanel = panel(); capturePanel.spacing = 7; root.addArrangedSubview(capturePanel); fullWidth(capturePanel)
-        capturePanel.heightAnchor.constraint(equalToConstant: 190).isActive = true
-        status.font = NSFont.systemFont(ofSize: 17, weight: .semibold); capturePanel.addArrangedSubview(status)
+        // At least 190 pt, growing with its content: a fixed height clipped the
+        // status row as soon as the detail text wrapped (a failed-exposure warning).
+        capturePanel.heightAnchor.constraint(greaterThanOrEqualToConstant: 190).isActive = true
+        status.font = NSFont.systemFont(ofSize: 17, weight: .semibold)
+        status.maximumNumberOfLines = 1; status.lineBreakMode = .byTruncatingTail
+        status.setContentCompressionResistancePriority(.required, for: .vertical); capturePanel.addArrangedSubview(status)
         detail.textColor = .secondaryLabelColor; detail.font = NSFont.systemFont(ofSize: 12)
+        detail.maximumNumberOfLines = 2; detail.setContentCompressionResistancePriority(.required, for: .vertical)
         detail.preferredMaxLayoutWidth = 830; capturePanel.addArrangedSubview(detail)
         let captureRow = NSStackView(); captureRow.spacing = 10
         captureButton = button("Start Listening", #selector(startCapture)); captureButton.isEnabled = false
@@ -226,11 +242,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         scope.font = NSFont.systemFont(ofSize: 10); scope.textColor = .secondaryLabelColor; scope.preferredMaxLayoutWidth = 680
         let footer = NSStackView(); footer.spacing = 14; footer.addArrangedSubview(scope)
         scope.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let donate = button("♥ Support on Ko-fi", #selector(supportProject)); donate.bezelStyle = .inline; donate.controlSize = .small
+        // Ko-fi sits in the lower right corner, a regular-size button in Ko-fi's coral.
+        let footerSpacer = NSView(); footerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        footer.addArrangedSubview(footerSpacer)
+        let donate = button("♥  Support on Ko-fi", #selector(supportProject)); donate.bezelStyle = .rounded; donate.controlSize = .regular
+        donate.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        let coral = NSColor(srgbRed: 1.0, green: 0.37, blue: 0.36, alpha: 1)
+        // White heart: the bezel is coral while the window is active (a coral heart
+        // vanished on it) and grey while inactive.
+        let donateTitle = NSMutableAttributedString(string: "♥  ", attributes: [.foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: 14, weight: .bold)])
+        donateTitle.append(NSAttributedString(string: "Support on Ko-fi", attributes: [.foregroundColor: NSColor.labelColor, .font: NSFont.systemFont(ofSize: 13, weight: .semibold)]))
+        donate.attributedTitle = donateTitle
+        donate.bezelColor = coral.withAlphaComponent(0.85)
         donate.toolTip = "Support ValeoCapture development at ko-fi.com/oakman"
+        donate.setContentHuggingPriority(.required, for: .horizontal)
+        donate.setContentCompressionResistancePriority(.required, for: .horizontal)
         footer.addArrangedSubview(donate); root.addArrangedSubview(footer); fullWidth(footer)
         if let output = showcaseOutput { renderShowcase(to: output); return }
-        window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate(ignoringOtherApps: true)
+        if let splash = launchSplash {
+            // The launch screen shows on its own for 3 s while the window is set
+            // up and the first refresh runs; then the main window opens behind it
+            // and the launch screen fades out.
+            let remaining = max(0, 3.0 - Date().timeIntervalSince(launchShownAt))
+            DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
+                self?.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+                splash.dismiss { self?.launchSplash = nil }
+            }
+        } else {
+            window.makeKeyAndOrderFront(nil)
+        }
         if let path = UserDefaults.standard.string(forKey: "destination") { destinationURL = URL(fileURLWithPath: path); destination.stringValue = path }
         if let name = UserDefaults.standard.string(forKey: "profileName") { profile.stringValue = name }
         if destinationURL == nil {
@@ -303,6 +344,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preview.image = syntheticChart(width: 1503, height: 1002); previewPlaceholder.isHidden = true
         previewName.stringValue = "Valeo11-0000000000000003.tiff  ·  4008 × 2672  ·  synthetic preview"
         loginButton.isEnabled = true; revealButton.isEnabled = true; captureButton.isEnabled = false; stopButton.isEnabled = true
+        if CommandLine.arguments.contains("--failed-exposure-state") {
+            // The state after a shot without shutter sync, as pollCapture shows it.
+            status.stringValue = "Last shot recorded no exposure · ready for the shutter"; status.textColor = .systemOrange
+            detail.stringValue = "The back fired but recorded no exposure. Check that the shutter/sync cable between the lens and the back is connected, then fire again. ValeoCapture is still listening."
+            detail.textColor = .systemOrange
+            captureStep.stringValue = "Back ready again · last shot recorded no exposure (1 so far this session)"
+        }
         guard let view = window.contentView else { exit(1) }
         view.layoutSubtreeIfNeeded(); view.display()
         guard let content = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(1) }
@@ -423,19 +471,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let completed = value["completed"] as? Int ?? 0
             let stage = value["stage"] as? String ?? ""
             let exporting = value["exportPending"] as? Bool ?? false
-            self.status.stringValue = "\(phase) · \(completed) saved"
-            self.progress.doubleValue = value["fraction"] as? Double ?? 0
             let error = value["error"] as? String ?? ""
+            let warning = value["warning"] as? String ?? ""
+            if !warning.isEmpty && stage == "waiting" {
+                self.status.stringValue = "Last shot recorded no exposure · ready for the shutter"
+            } else if !error.isEmpty && !active {
+                self.status.stringValue = "Listening stopped · see the message below"
+            } else {
+                self.status.stringValue = "\(phase) · \(completed) saved"
+            }
+            self.progress.doubleValue = value["fraction"] as? Double ?? 0
             let timing = value["timing"] as? String ?? ""
             self.lastTiming.stringValue = timing
             if !active && !error.isEmpty { self.cameraReady = false; self.updateCaptureControls() }
-            self.detail.stringValue = error.isEmpty ? (stage == "waiting" ? "Fire the physical shutter. Files can finish saving in the background." : "Wait for Ready before the next exposure. Original sensor data is preserved.") : error
+            if !error.isEmpty {
+                self.detail.stringValue = error
+            } else if !warning.isEmpty {
+                self.detail.stringValue = warning
+            } else if stage == "waiting" {
+                self.detail.stringValue = "Fire the physical shutter. Files can finish saving in the background."
+            } else {
+                self.detail.stringValue = "Wait for Ready before the next exposure. Original sensor data is preserved."
+            }
+            // A failed exposure (no shutter sync) or a session that ended with an
+            // error must not read like a normal state.
+            let attention = !error.isEmpty || !warning.isEmpty
+            self.status.textColor = attention ? .systemOrange : .labelColor
+            self.detail.textColor = attention ? .systemOrange : .secondaryLabelColor
             let received = value["received"] as? Double ?? 0
             switch stage {
             case "photograph": self.captureStep.stringValue = String(format: "1 of 2 · Photograph · %.1f / 21.8 MB", received / 1_000_000)
             case "calibration":
                 self.captureStep.stringValue = String(format: "2 of 2 · Fresh calibration · %.1f / 21.8 MB", max(0, received - 21_772_608) / 1_000_000)
-            case "waiting": self.captureStep.stringValue = "Back ready · photograph + fresh calibration received for each image"
+            case "waiting":
+                let failed = value["failedExposures"] as? Int ?? 0
+                self.captureStep.stringValue = warning.isEmpty ? "Back ready · photograph + fresh calibration received for each image"
+                    : "Back ready again · last shot recorded no exposure (\(failed) so far this session)"
+            case "failed": self.captureStep.stringValue = "No exposure recorded · clearing the empty frame and re-arming the back"
             case "finishing": self.captureStep.stringValue = "Finishing files safely before continuing…"
             default: self.captureStep.stringValue = active ? "Preparing the back…" : "Listening stopped"
             }
@@ -584,6 +656,11 @@ if CommandLine.arguments.contains("--self-test-bundled-profiles") {
     if !finished { fputs("XPC snapshot timed out\n", stderr) }
     try? FileManager.default.removeItem(at: directory)
     exit(ok ? 0 : 1)
+} else if let index = CommandLine.arguments.firstIndex(of: "--render-launch-screen"), index + 1 < CommandLine.arguments.count {
+    _ = NSApplication.shared
+    let url = URL(fileURLWithPath: CommandLine.arguments[index + 1])
+    guard LaunchSplash.render(to: url) else { fputs("Launch screen render failed\n", stderr); exit(1) }
+    print("Rendered launch screen to \(url.path)"); exit(0)
 } else {
     let app = NSApplication.shared
     let delegate = AppDelegate(); app.delegate = delegate; app.run()

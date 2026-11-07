@@ -43,7 +43,7 @@ for architecture in x86_64 arm64; do
     cmake --build "$slice_dir"
     target="$architecture-apple-macosx$minimum"
     xcrun swiftc -swift-version 5 -O -target "$target" -framework AppKit \
-        "$project_dir/app/ServiceProtocol.swift" "$project_dir/app/CameraCalibration.swift" "$project_dir/app/main.swift" -o "$slice_dir/ValeoCapture"
+        "$project_dir/app/ServiceProtocol.swift" "$project_dir/app/CameraCalibration.swift" "$project_dir/app/LaunchSplash.swift" "$project_dir/app/main.swift" -o "$slice_dir/ValeoCapture"
     xcrun swiftc -swift-version 5 -O -target "$target" -framework Foundation \
         -import-objc-header "$project_dir/platform/macos/bridge.h" \
         "$project_dir/app/ServiceProtocol.swift" "$project_dir/app/CameraCalibration.swift" "$project_dir/app/service/SessionLifetime.swift" "$project_dir/app/service/main.swift" \

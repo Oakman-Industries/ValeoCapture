@@ -10,6 +10,7 @@
 #include "valeo/raw_validation.hpp"
 #include "valeo/raw_pipeline.hpp"
 #include "valeo/color.hpp"
+#include "valeo/capture_diagnostics.hpp"
 #include <CoreFoundation/CoreFoundation.h>
 #include <chrono>
 #include <memory>
@@ -18,6 +19,10 @@
 #include <iomanip>
 #include <locale>
 #include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <fstream>
+#include <thread>
 
 namespace valeo {
 namespace {
@@ -30,12 +35,51 @@ std::filesystem::path new_stem(const std::filesystem::path& folder) {
     return folder/("Valeo11-"+std::to_string(stamp));
 }
 void save_sidecar(const std::filesystem::path& path,const Bytes& data) {Journal out(path,data.size());out.append(data);out.commit();}
-void wait_briefly(double seconds){CFRunLoopRunInMode(kCFRunLoopDefaultMode,seconds,false);}
+// Waits on this thread's run loop (callbacks a backend may have attached keep
+// running). With no run-loop source — the macOS 26 / ASFW route adds none —
+// CFRunLoopRunInMode returns kCFRunLoopRunFinished at once, which turned every
+// wait into a busy poll of the back (~340 status reads/s measured); sleep then.
+void wait_briefly(double seconds){
+    if(CFRunLoopRunInMode(kCFRunLoopDefaultMode,seconds,false)==kCFRunLoopRunFinished)
+        std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
+}
+std::string local_time_iso8601() {
+    const std::time_t now=std::time(nullptr);std::tm tm{};localtime_r(&now,&tm);
+    char text[40]{};std::strftime(text,sizeof text,"%Y-%m-%dT%H:%M:%S%z",&tm);return text;
+}
+std::string hex_bytes(const Bytes& data) {
+    static constexpr char digits[]="0123456789abcdef";std::string out;out.reserve(data.size()*2);
+    for(const auto byte:data){out+=digits[byte>>4];out+=digits[byte&15];}return out;
+}
+std::string hex32(std::uint32_t value){std::ostringstream o;o<<"0x"<<std::hex<<std::setw(8)<<std::setfill('0')<<value;return o.str();}
+// Plain-text session log, ~/Library/Logs/ValeoCapture/capture-YYYY-MM-DD.log:
+// phases, every change of the back's 88-byte status, failed exposures and the
+// error that ends a session. No serial numbers or image data. Best effort: a
+// log that cannot be opened never stops a capture.
+class SessionLog {
+    std::ofstream out_;
+public:
+    SessionLog() {
+        const char* home=std::getenv("HOME");if(!home || !*home)return;
+        const auto dir=std::filesystem::path(home)/"Library"/"Logs"/"ValeoCapture";
+        std::error_code ec;std::filesystem::create_directories(dir,ec);if(ec)return;
+        out_.open(dir/("capture-"+local_time_iso8601().substr(0,10)+".log"),std::ios::app);
+    }
+    void line(const std::string& text) {
+        if(!out_)return;
+        out_<<local_time_iso8601()<<' '<<text<<'\n';out_.flush();
+    }
+};
+void write_text_atomically(const std::filesystem::path& path,const std::string& text) {
+    const auto temporary=path.string()+".partial";
+    {std::ofstream out(temporary,std::ios::trunc);out<<text;if(!out)throw Error(ErrorCode::io,"Cannot write diagnostic record");}
+    std::filesystem::rename(temporary,path);
+}
 using Clock=std::chrono::steady_clock;
 double elapsed(Clock::time_point start){return std::chrono::duration<double>(Clock::now()-start).count();}
 struct PlaneTiming {double read{},journal{};std::array<double,3> transport{};};
-} // namespace
-void run_capture_session(const CaptureSettings& settings,const std::atomic_bool& stop,const std::atomic_uint& requested_iso,const std::function<void(const CaptureProgress&)>& report) {
+void run_capture_session_logged(const CaptureSettings& settings,const std::atomic_bool& stop,const std::atomic_uint& requested_iso,
+    const std::function<void(const CaptureProgress&)>& report,SessionLog& log) {
     CaptureProgress p;
     CaptureExporter exporter(settings.input_icc,settings.save_tiff);
     CalibrationCache calibration;
@@ -67,7 +111,13 @@ void run_capture_session(const CaptureSettings& settings,const std::atomic_bool&
         metadata.serial=identity.body_serial;
     };
     identify();auto generation=t.generation();
-    const auto status=[&]{return t.submit(read_command(7,88,generation)).data;};
+    log.line("connected and identified (VA11A/5/C firmware 3301), bus generation "+std::to_string(generation));
+    Bytes last_status;
+    const auto status=[&]{
+        auto reply=t.submit(read_command(7,88,generation)).data;
+        if(reply!=last_status){log.line("status "+hex_bytes(reply));last_status=reply;}
+        return reply;
+    };
     const auto ensure_generation=[&]{if(t.generation()!=generation)throw Error(ErrorCode::stale_generation,"Camera bus changed; reconnect and identify again");};
     const auto receive=[&](Journal& journal,const char* phase,double base,double span,std::uint64_t offset,PlaneTiming& timing) {
         p.received=offset;p.fraction=base;update(phase);
@@ -86,6 +136,61 @@ void run_capture_session(const CaptureSettings& settings,const std::atomic_bool&
             if(++chunks%8==0)publish();
         }
         validator.finish();ensure_generation();const auto tick=Clock::now();journal.commit();timing.journal+=elapsed(tick);publish();return plane;
+    };
+    // Reads a whole frame without keeping it (the back's 0xFFFF fill after a
+    // failed exposure). Returns the number of samples that were not 0xFFFF.
+    const auto drain=[&](const char* phase,double base,double span,std::uint64_t offset) {
+        p.received=offset;p.fraction=base;update(phase);
+        std::uint32_t remaining=reference_frame_bytes,chunks=0;std::uint64_t non_empty=0;
+        while(remaining) {
+            const auto size=std::min(remaining,t.frame_chunk_limit());
+            const auto reply=t.submit(read_command(0x14,size,generation));
+            if(reply.data.size()!=size)throw Error(ErrorCode::protocol,"Camera returned a short image chunk");
+            non_empty+=count_non_empty_samples(reply.data);
+            remaining-=size;p.received+=size;p.fraction=base+span*(reference_frame_bytes-remaining)/reference_frame_bytes;
+            if(++chunks%8==0)publish();
+        }
+        ensure_generation();publish();return non_empty;
+    };
+    // The back fired but recorded no exposure (capture_diagnostics.hpp; usually
+    // the shutter/sync cable is not connected). It announced a frame anyway and
+    // waits for the rest of its image cycle: without it, it beeps on the next
+    // shot but never announces a frame again until it is power-cycled
+    // (observed on a Valeo 11). Finish the cycle with exactly the commands
+    // of a normal image — clear the frame, auxiliary arm/trigger, clear the
+    // auxiliary frame, timed light rearm, ready tone — keep no image, write a
+    // diagnostic record next to the captures, and keep listening.
+    const auto complete_failed_exposure=[&](const Bytes& light_status,const Bytes& light_parameters) {
+        log.line("failed exposure: capture-parameter word 11 is 0 (no exposure recorded); clearing the frame and finishing the cycle");
+        p.stage="failed";p.total=std::uint64_t(reference_frame_bytes)*2;
+        FailedExposureRecord record;record.time=local_time_iso8601();record.frame_bytes=reference_frame_bytes;
+        record.bus_generation=generation;record.software_iso=p.software_iso;
+        record.ready_status=light_status;record.capture_parameters=light_parameters;
+        record.non_empty_samples=drain("No exposure recorded · clearing the empty frame",0,0.45,0);
+        if(read_be32(status(),0))throw Error(ErrorCode::protocol,"Empty frame cleared but the camera still has pending bytes");
+        t.submit(auxiliary_arm(generation));t.submit(auxiliary_trigger(generation));
+        Bytes auxiliary_status;
+        const auto deadline=CFAbsoluteTimeGetCurrent()+60;
+        while(CFAbsoluteTimeGetCurrent()<deadline) {
+            const auto reply=status();const auto size=read_be32(reply,0);
+            if(size==reference_frame_bytes){auxiliary_status=reply;break;}
+            if(size)throw Error(ErrorCode::protocol,"Camera announced an unknown auxiliary size");
+            wait_briefly(0.01);
+        }
+        if(auxiliary_status.empty())throw Error(ErrorCode::timeout,"Auxiliary timed out after a failed exposure");
+        record.auxiliary_non_empty_samples=drain("No exposure recorded · finishing the back's cycle",0.45,0.45,reference_frame_bytes);
+        record.auxiliary_parameters=t.submit(read_command(0x22,480,generation)).data;
+        if(read_be32(status(),0))throw Error(ErrorCode::protocol,"Auxiliary cleared but the camera still has pending bytes");
+        t.submit(timed_light_rearm(generation,read_be32(auxiliary_status,0x38)));
+        t.submit(physical_setup(PhysicalSetup::ready_beep,generation));wait_briefly(0.151);
+        const auto path=std::filesystem::path(new_stem(settings.folder).string()+".failed-exposure.json");
+        write_text_atomically(path,failed_exposure_json(record));
+        ++p.failed_exposures;p.warning=kFailedExposureMessage;p.last_diagnostic=path.string();
+        log.line("failed exposure handled: frame non-0xFFFF samples "+std::to_string(record.non_empty_samples)+
+                 ", auxiliary non-0xFFFF samples "+std::to_string(record.auxiliary_non_empty_samples)+
+                 ", auxiliary word 11 "+hex32(read_be32(record.auxiliary_parameters,kCaptureParametersExposureOffset))+
+                 "; record "+path.filename().string()+"; listening again");
+        publish();
     };
     auto initial=status();
     if(read_be32(initial,0)) {
@@ -124,6 +229,14 @@ void run_capture_session(const CaptureSettings& settings,const std::atomic_bool&
             publish();wait_briefly(0.1);
         }
         if(light_status.empty())break;
+        // Capture parameters come before the frame and say whether the back
+        // recorded an exposure at all.
+        const auto light_parameters=t.submit(read_command(0x22,480,generation)).data;
+        log.line("frame announced; capture-parameter word 11 "+hex32(read_be32(light_parameters,kCaptureParametersExposureOffset)));
+        if(!capture_parameters_report_exposure(light_parameters)) {
+            complete_failed_exposure(light_status,light_parameters);
+            continue;
+        }
         // Freeze per-image metadata. A software-gain request received during
         // either plane or export affects only the next image.
         metadata.iso=p.software_iso;p.frame_iso=p.software_iso;
@@ -134,7 +247,6 @@ void run_capture_session(const CaptureSettings& settings,const std::atomic_bool&
         const auto light_path=stem+".vraw",dark_path=stem+".auxiliary.vraw";
         Journal light_file(light_path,reference_frame_bytes),dark_file(dark_path,reference_frame_bytes);
         save_sidecar(light_path+".ready-status",light_status);
-        const auto light_parameters=t.submit(read_command(0x22,480,generation)).data;
         save_sidecar(light_path+".capture-parameters",light_parameters);
         const bool reused=settings.reuse_calibration && calibration.can_reuse(generation,light_status,light_parameters);
         p.calibration_reused=reused;p.total=std::uint64_t(reference_frame_bytes)*(reused?1:2);
@@ -185,6 +297,8 @@ void run_capture_session(const CaptureSettings& settings,const std::atomic_bool&
         pair.photo_transport=photo_time.transport;pair.dark_transport=dark_time.transport;
         pair.calibration_reused=reused;pair.calibration_source=calibration.current().source;
         exporter.submit(std::move(pair));
+        if(!p.warning.empty()){p.warning.clear();publish();}
+        log.line("image captured: "+std::filesystem::path(stem).filename().string()+(reused?" (calibration reused)":""));
     }} catch(...) {
         // Close on the original owner before waiting for CPU-only work. A bus
         // failure must not abandon a previously committed pair's export.
@@ -193,6 +307,19 @@ void run_capture_session(const CaptureSettings& settings,const std::atomic_bool&
     t.close();
     if(exporter.busy()){p.stage="finishing";update("Finishing file export");collect_export(true);}
 
-    p.stage="stopped";update("Stopped");
+    p.stage="stopped";update("Stopped");log.line("session stopped");
+}
+} // namespace
+
+void run_capture_session(const CaptureSettings& settings,const std::atomic_bool& stop,const std::atomic_uint& requested_iso,const std::function<void(const CaptureProgress&)>& report) {
+    SessionLog log;
+    log.line("session start: registry "+std::to_string(settings.registry_id)+", software ISO "+std::to_string(settings.software_iso));
+    try {
+        run_capture_session_logged(settings,stop,requested_iso,report,log);
+    } catch(const std::exception& e) {
+        log.line(std::string("session ended with error: ")+e.what());throw;
+    } catch(...) {
+        log.line("session ended with an unknown error");throw;
+    }
 }
 } // namespace valeo

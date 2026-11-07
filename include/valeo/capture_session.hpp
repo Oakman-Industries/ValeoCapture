@@ -18,6 +18,10 @@ struct CaptureSettings {
 struct CaptureProgress {
     std::string phase{"idle"},stage{"idle"},last_dng,last_tiff,last_raw,error,timing;
     std::string export_phase;
+    // Set after the back fired but recorded no exposure (capture_diagnostics.hpp);
+    // cleared by the next good image. last_diagnostic is the JSON record's path.
+    std::string warning,last_diagnostic;
+    std::uint64_t failed_exposures{};
     bool export_pending{};
     bool calibration_reused{};
     double fraction{};

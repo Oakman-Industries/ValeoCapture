@@ -43,7 +43,7 @@ Six bytes: `[opcode, operation, length >> 16, length >> 8, length, 0]`.
 | `0x11` | write | 36 | Select a named parameter: BE32 `0`, then a zero-padded 32-byte ASCII name |
 | `0x00` | read | 64 | Read the selected parameter; bytes 32..63 hold the value |
 | `0x07` | read | 88 | Status. First BE32 = bytes ready to read (`21772608` when a frame is ready) |
-| `0x22` | read | 480 | Capture parameters of the pending frame |
+| `0x22` | read | 480 | Capture parameters of the pending frame; BE32 at `0x2C` is `0` when no exposure was recorded |
 | `0x14` | read | ≤ frame | Frame data, read in chunks until the announced size is drained |
 | `0x12` | write | 40 | Arm: ten BE32 words (see below) |
 | `0x13` | write | 56 | Start the auxiliary (dark) exposure; 56 zero bytes |
@@ -71,6 +71,19 @@ requires `VA11`, revision `A`, size code `5`, colour `C` and firmware 3301 befor
    BE32 at offset `0x38`, divided by 1000; then the ready tone.
 
 ISO changes are sent only between frames, after a status poll reports zero bytes ready.
+
+### Failed exposure (no sync signal)
+
+Measured on one back (firmware 3301): when the body fires with the sync cable disconnected, the
+back beeps four times and announces a normal frame. The status record is byte-identical to a good
+frame's, but in the capture parameters the BE32 at offset `0x2C` is `0`, and the frame is
+21,772,608 bytes of `0xFFFF`. In every good light and auxiliary frame on record that word is
+non-zero, and an auxiliary frame repeats its light frame's value, so it reads as the measured
+exposure time. Another word that looked like a flag is `0` in many good frames and is not used.
+
+The back stays stuck until the image cycle is finished. The app reads the capture parameters
+before the frame, and when the word is `0` it drains the empty frame, runs the auxiliary step and
+re-arms exactly as in steps 4 and 5, then sends the ready tone. The next shot works normally.
 
 ### Frame format
 

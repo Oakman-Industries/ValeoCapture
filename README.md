@@ -125,6 +125,11 @@ noise. Gain can be changed while listening and applies to the next image.
 Press **Start Listening**, wait for **Ready for the shutter**, then fire the camera's shutter. The
 app receives the photograph and a fresh dark frame, then exports while the back re-arms.
 
+If the back beeps four times and the app shows an orange **recorded no exposure** warning, the
+back fired without the shutter's sync signal. Check the sync cable between the lens and the back,
+then fire again: ValeoCapture finishes the back's cycle, saves a small `.failed-exposure.json`
+record beside your captures and keeps listening. No power cycle is needed.
+
 ### Step 6 — Develop
 The **DNG** keeps the corrected, unamplified mosaic and highlight headroom and records the gain as
 exposure metadata. The optional **16-bit TIFF** applies the gain and your selected Leaf preset and
