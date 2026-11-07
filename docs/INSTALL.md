@@ -15,9 +15,11 @@ Gatekeeper to run it.
 - **macOS 10.15.7–15:** ValeoCapture uses macOS's own FireWire stack. There is nothing extra to
   install. Hardware-tested on Intel macOS 15.7.9; other versions are build targets only.
 - **macOS 26 and later:** Apple's FireWire stack is gone. ValeoCapture uses the SCSI device
-  published by the ASFW DriverKit driver. The Valeo 11 needs ASFW fixes that are not yet in a
-  released ASFW build; until they are, this route needs a development ASFW build, which requires
-  System Integrity Protection to be disabled. Hardware-tested on Apple Silicon macOS 26.7.1.
+  published by the ASFW DriverKit driver. The Valeo 11 needs ASFW changes that are under review
+  ([ASFW #254–#257](https://github.com/mrmidi/ASFireWire/pulls?q=is%3Apr+author%3AOakman-Dev)) and
+  not yet in a released ASFW build; until they are, this route needs a development ASFW build,
+  which requires System Integrity Protection to be disabled. Hardware-tested on Apple Silicon
+  macOS 26.7.1.
 
 The colour metadata in a functional build is matched to one specific Valeo 11; another back needs
 its own calibration. No firmware update is included or performed.

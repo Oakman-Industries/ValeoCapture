@@ -91,9 +91,11 @@ route is chosen by macOS version, not by processor. A successful build for an ar
 proof of hardware support.
 
 **macOS 26 and later** no longer include Apple's FireWire stack. ValeoCapture then uses the SCSI
-device published by ASFW. The Valeo 11 needs several ASFW fixes (no-data commands, data-in
-buffering, REPORT LUNS, SBP-2 unit-directory keys and login validation) that are being prepared
-for submission to the ASFW project and are **not in a released ASFW build**. Until they are, macOS 26 use requires a
+device published by ASFW. The Valeo 11 needs ASFW changes that have been submitted to the ASFW
+project and are under review ([#254](https://github.com/mrmidi/ASFireWire/pull/254)–[#257](https://github.com/mrmidi/ASFireWire/pull/257)):
+handling of SCSI commands a device does not implement during attach, bounded short data-in
+transfers, REPORT LUNS, SBP-2 unit-directory keys, login validation and unit identity on the SBP-2
+nub. They are **not in a released ASFW build**. Until they are, macOS 26 use requires a
 development build of ASFW, which in turn requires disabling System Integrity Protection — not
 something to do casually, and not recommended for general users.
 

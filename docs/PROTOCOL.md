@@ -12,10 +12,18 @@ here is unknown and must not be sent: the app enforces this list with an allowli
   `Device_Type 2` (from the Logical_Unit_Number entry, `0x020000`). Matching these is **not**
   identification; the named identity reads below are.
 - The unit answers a standard SCSI INQUIRY (peripheral type 2, vendor `Intoto`,
-  product `SBP-2 Printer`, revision `0.90`), but all camera work uses vendor commands.
-- The unit **does not complete command ORBs that carry no data** (for example TEST UNIT READY) and
-  **does not complete REPORT LUNS**. It may also return more INQUIRY data than requested. A host
-  driver must answer or refuse those itself and keep small data-in buffers bounded.
+  product `SBP-2 Printer`, revision `0.90`), but all camera work uses vendor commands. Its SCSI
+  front end appears to be an SBP-2 printer reference stack: the Config ROM's text leaf is the
+  IEEE 1284 device ID `MFG:HP;MDL:DJ890C/Intoto/SBP2;CLS:Printer;`.
+- The unit answers only INQUIRY and the two vendor opcodes below. Any other command, for example
+  TEST UNIT READY or REPORT LUNS, gets **no status at all** (not CHECK CONDITION), so a host must
+  not wait on it. Management ORBs (login, LUN reset) are answered.
+- INQUIRY always returns the same 36 bytes, whatever the allocation length, the ORB's data length
+  or the EVPD bit and page code ask for; its ADDITIONAL LENGTH field is 0. A host driver must keep
+  small data-in buffers bounded. The vendor reads stop exactly at the requested length.
+- After a bus reset, while a previous login is still held, the unit answers a new login with a
+  complete, error-free status block but writes no login response. It accepted a login again
+  about 3.6 s after the reset. Check that the login response names a command block agent.
 - Unit_Characteristics `0x00A008`: management ORB timeout 0xA0 × 500 ms (80 s), ORB size
   8 quadlets (32 bytes).
 
